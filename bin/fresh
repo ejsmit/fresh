@@ -129,6 +129,7 @@ sub read_freshrc {
   fresh() {
     _env FRESH_BIN_PATH
     _env FRESH_NO_BIN_CONFLICT_CHECK
+    _env FORCE_YES_I_KNOW_I_AM_STUPID_AND_THIS_IS_DANGEROUS
     _output fresh "$@"
   }
 
@@ -499,7 +500,7 @@ sub make_entry_link {
     }
     return
   }
-
+  # target defined, so link path exists and is a link
   if (defined($existing_target)) {
     if ($existing_target ne $link_target) {
       if (prefix_match($existing_target, "$FRESH_PATH/build/") && -l $link_path) {
@@ -509,8 +510,17 @@ sub make_entry_link {
         entry_error $entry, "$link_path already exists (pointing to $existing_target).", {skip_info => 1};
       }
     }
+  # target not defined, but link path exists, so exists but somethign else?
   } elsif (-e $link_path) {
-    entry_error $entry, "$link_path already exists.", {skip_info => 1};
+    if (defined($$entry{env}{FORCE_YES_I_KNOW_I_AM_STUPID_AND_THIS_IS_DANGEROUS}) && $$entry{env}{FORCE_YES_I_KNOW_I_AM_STUPID_AND_THIS_IS_DANGEROUS} eq 'true') {
+      unless (rename($link_path,$link_path . '.fresh.orig' )) {
+         entry_error $entry, "$link_path already exists and cannot be removed.", {skip_info => 1};
+      }
+      symlink($link_target, $link_path);
+    } else {
+      entry_error $entry, "$link_path already exists.", {skip_info => 1};
+    }
+  # target and link path does not exist
   } else {
     make_path(dirname($link_path), {error => \my $err});
     if (@$err || !symlink($link_target, $link_path)) {
