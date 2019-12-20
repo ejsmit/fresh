@@ -6,14 +6,14 @@
 
 set -e
 
-mkdir -p ~/.fresh/source/freshshell
+mkdir -p ~/.fresh/source/ejsmit
 
-if [ -d ~/.fresh/source/freshshell/fresh ]; then
-  cd ~/.fresh/source/freshshell/fresh
+if [ -d ~/.fresh/source/ejsmit/fresh ]; then
+  cd ~/.fresh/source/ejsmit/fresh
   git pull --rebase
   cd "$OLDPWD"
 else
-  git clone https://github.com/freshshell/fresh ~/.fresh/source/freshshell/fresh
+  git clone https://github.com/ejsmit/fresh ~/.fresh/source/ejsmit/fresh
 fi
 
 FRESH_LOCAL="${FRESH_LOCAL:-$HOME/.dotfiles}"
@@ -46,12 +46,12 @@ if ! [ -e ~/.freshrc ]; then
 #
 # See http://freshshell.com/readme for documentation.
 
-fresh freshshell/fresh bin/fresh --bin
+fresh ejsmit/fresh bin/fresh --bin
 EOF
   fi
 fi
 
-~/.fresh/source/freshshell/fresh/bin/fresh
+~/.fresh/source/ejsmit/fresh/bin/fresh
 
 cat <<-MESSAGE
 
