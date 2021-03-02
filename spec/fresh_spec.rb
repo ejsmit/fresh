@@ -348,7 +348,7 @@ describe 'fresh' do
           end
         end
 
-        it 'builds with ref' do
+        it 'builds with --ref' do
           rc 'fresh repo/name recursive-test --ref=abc1237 --file=vendor/test/'
           FileUtils.mkdir_p fresh_path + 'source/repo/name'
           stub_git
@@ -599,9 +599,8 @@ describe 'fresh' do
       touch fresh_path + 'source/repo/name/file'
 
       FileUtils.mkdir_p fresh_local_path
-      silence(:stdout) do
-        expect(system 'git', 'init', fresh_local_path.to_s).to be true
-      end
+      output, status = Open3.capture2('git', 'init', fresh_local_path.to_s)
+      expect(status).to be_success
 
       run_fresh
     end
@@ -622,8 +621,6 @@ describe 'fresh' do
         expect(git_log).to eq <<-EOF.strip_heredoc
           cd #{fresh_path + 'source/repo/name'}
           git ls-tree -r --name-only abc1237
-          cd #{fresh_path + 'source/repo/name'}
-          git show abc1237:aliases/.fresh-order
           cd #{fresh_path + 'source/repo/name'}
           git show abc1237:aliases/git.sh
           cd #{fresh_path + 'source/repo/name'}
@@ -654,7 +651,7 @@ describe 'fresh' do
           to eq "test data for abcdefg:sedmv\n"
       end
 
-      it 'errors if source file missing at ref' do
+      it 'errors if source file missing at --ref' do
         rc 'fresh repo/name bad-file --ref=abc1237'
         FileUtils.mkdir_p fresh_path + 'source/repo/name'
         stub_git
@@ -675,7 +672,7 @@ describe 'fresh' do
       end
 
       context 'with --ignore-missing' do
-        it 'does not error if source file missing at ref with --ignore-missing' do
+        it 'does not error if source file missing at --ref with --ignore-missing' do
           rc 'fresh repo/name bad-file --ref=abc1237 --ignore-missing'
           FileUtils.mkdir_p fresh_path + 'source/repo/name'
           stub_git
@@ -688,7 +685,7 @@ describe 'fresh' do
           EOF
         end
 
-        it 'builds files with ref and ignore missing' do
+        it 'builds files with --ref and --ignore-missing' do
           rc <<-EOF.strip_heredoc
             fresh repo/name ackrc --file --ref=abc1237 --ignore-missing
             fresh repo/name missing --file --ref=abc1237 --ignore-missing
@@ -711,7 +708,7 @@ describe 'fresh' do
         end
       end
 
-      it 'errors if no ref is specified' do
+      it 'errors if no --ref value is specified' do
         rc 'fresh foo --file --ref'
 
         run_fresh error: <<-EOF.strip_heredoc
@@ -752,7 +749,7 @@ describe 'fresh' do
         expect_pathname('~/.foo/sub/file2').to exist
       end
 
-      it 'links directory of generic files for whole repo with ref' do
+      it 'links directory of generic files for whole repo with --ref' do
         rc 'fresh repo/name . --file=~/.foo/ --ref=abc123'
 
         run_fresh
@@ -821,7 +818,7 @@ describe 'fresh' do
       EOF
     end
 
-    it 'with ref' do
+    it 'with --ref' do
       rc "fresh repo/name 'recursive-test/*' --ref=abc1237"
       stub_git
 
@@ -863,7 +860,7 @@ describe 'fresh' do
       end
     end
 
-    context 'with ref' do
+    context 'with --ref' do
       before do
         stub_git
       end
@@ -878,7 +875,7 @@ describe 'fresh' do
         EOF
       end
 
-      it 'includes hidden files when explicitly referenced with ref' do
+      it 'includes hidden files when explicitly referenced with --ref' do
         rc "fresh repo/name 'hidden-test/.*' --ref=abc1237"
 
         run_fresh
@@ -913,7 +910,7 @@ describe 'fresh' do
       EOF
     end
 
-    it 'with ref' do
+    it 'with --ref' do
       rc "fresh repo/name 'order-test/*' --ref=abc1237"
       FileUtils.mkdir_p fresh_path + 'source/repo/name'
       stub_git
@@ -963,7 +960,7 @@ describe 'fresh' do
       EOF
     end
 
-    it 'runs filters on files locked to a ref' do
+    it 'runs filters on files locked to a --ref' do
       FileUtils.mkdir_p fresh_local_path
       rc "fresh aliases/git.sh --ref=abc1237 --filter='sed s/test/TEST/'"
       stub_git
@@ -1625,19 +1622,18 @@ describe 'fresh' do
 
     describe 'FRESH_BIN_PATH' do
       let(:path) do
-        capture(:stdout) do
-          system <<-EOF
-/usr/bin/env bash -c "$(
-cat <<'SH'
-  export PATH=/usr/bin
-  source #{shell_sh_path}
-  echo "$PATH" | tr ":" "\n"
-SH
-)"
-          EOF
-        end.split("\n")
+        output, status = Open3.capture2(<<~EOF)
+          /usr/bin/env bash -c "$(
+          cat <<'SH'
+            export PATH=/usr/bin
+            source #{shell_sh_path}
+            echo "$PATH" | tr ":" "\n"
+          SH
+          )"
+        EOF
+        expect(status).to be_success
+        output.split("\n")
       end
-
 
       it 'defaults to $HOME/bin' do
         run_fresh
@@ -1676,18 +1672,18 @@ SH
       it 'does not duplicate FRESH_BIN_PATH in the PATH in subshells' do
         run_fresh
 
-        path = capture(:stdout) do
-          system <<-EOF
-/usr/bin/env bash -c "$(
-cat <<'SH'
-  export PATH=/usr/bin
-  source #{shell_sh_path}
-  source #{shell_sh_path}
-  echo "$PATH" | tr ":" "\n"
-SH
-)"
-          EOF
-        end.split("\n")
+        output, status = Open3.capture2(<<~EOF)
+          /usr/bin/env bash -c "$(
+          cat <<'SH'
+            export PATH=/usr/bin
+            source #{shell_sh_path}
+            source #{shell_sh_path}
+            echo "$PATH" | tr ":" "\n"
+          SH
+          )"
+        EOF
+        expect(status).to be_success
+        path = output.split("\n")
 
         expect(path).to eq([
           (sandbox_path + 'home/bin').to_s,
@@ -1697,16 +1693,17 @@ SH
 
       it 'unsets the __FRESH_BIN_PATH__ variable' do
         run_fresh
-        out = capture(:stdout) do
-          system <<-EOF
-/usr/bin/env bash -c "$(
-cat <<'SH'
-  source #{shell_sh_path}
-  echo "$__FRESH_BIN_PATH__"
-SH
-)"
-          EOF
-        end.chomp
+
+        output, status = Open3.capture2(<<~EOF)
+          /usr/bin/env bash -c "$(
+          cat <<'SH'
+            source #{shell_sh_path}
+            echo "$__FRESH_BIN_PATH__"
+          SH
+          )"
+        EOF
+        expect(status).to be_success
+        out = output.chomp
 
         expect(out).to eq ''
       end
@@ -2189,7 +2186,8 @@ SH
       vi_path = bin_path + 'vi'
       File.open(vi_path, 'a') do |file|
         file.write <<-EOF.strip_heredoc
-          #!/bin/bash -e
+          #!/usr/bin/env bash
+          set -e
 
           echo START vi
           echo $1
@@ -2262,14 +2260,22 @@ SH
   end
 
   describe 'help' do
-    it 'displays the help' do
+    before do
       %w[foo bar].each do |plugin|
         path = bin_path + "fresh-#{plugin}"
         touch path
         FileUtils.chmod '+x', path
       end
+    end
 
-      run_fresh command: 'help', env: {'PATH' => "#{bin_path}:/bin:/usr/bin"}, success: <<-EOF.strip_heredoc
+    let(:run_env) do
+      {
+        'PATH' => "#{bin_path}:/bin:/usr/bin:/usr/local/bin",
+      }
+    end
+
+    it 'displays the help' do
+      run_fresh command: 'help', env: run_env, success: <<-EOF.strip_heredoc
         Keep your dot files #{FRESH_HIGHLIGHTED}.
 
         The following commands will install/update configuration files
@@ -2293,6 +2299,22 @@ SH
     end
 
     include_examples 'invalid arguments', 'help'
+
+    specify 'commands' do
+      run_fresh command: 'commands', env: run_env, success: <<-EOF.strip_heredoc
+        install            # Build shell configuration and relevant symlinks (default)
+        update [<filter>]  # Update from source repos and rebuild
+        clean              # Removes dead symlinks and source repos
+        search <query>     # Search the fresh directory
+        edit               # Open freshrc for editing
+        show               # Show source references for freshrc lines
+        help               # Show this help
+        bar                # Run bar plugin
+        foo                # Run foo plugin
+      EOF
+    end
+
+    include_examples 'invalid arguments', 'commands'
   end
 
   describe '--marker' do

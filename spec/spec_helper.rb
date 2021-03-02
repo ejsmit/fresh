@@ -2,6 +2,7 @@ require 'active_support/core_ext/kernel/reporting'
 require 'active_support/core_ext/string/strip'
 require 'active_support/core_ext/hash/keys'
 require 'tmpdir'
+require 'open3'
 require 'pry'
 
 require_relative 'support/shared_examples'
@@ -56,42 +57,41 @@ def run_fresh(options = {})
   options.assert_valid_keys :command, :full_command, :exit_status, :success, :error, :error_title, :env
   env = options.fetch(:env, {})
 
-  @stdout = capture(:stdout) do
-    @stderr = capture(:stderr) do
-      @exit_status = if options[:full_command]
-        system(env, options[:full_command])
-      else
-        system(env, *['fresh', Array(options[:command])].flatten.compact)
-      end
-    end
-  end
-
-  if options[:success] && options[:error]
-    expect(@stdout).to eq options.fetch(:success)
-    expect(@stderr).to eq options.fetch(:error)
-    expect(@exit_status).to eq options.fetch(:exit_status)
-  elsif options[:error]
-    expect(@stdout).to be_empty
-    expect(@stderr).to eq options[:error]
-    expect(@exit_status).to eq options.fetch(:exit_status, false)
-  elsif options[:error_title]
-    expect(@stdout).to be_empty
-    expect(
-      @stderr.lines.grep(/Error/).join
-    ).to eq options[:error_title]
-    expect(@exit_status).to eq options.fetch(:exit_status, false)
-  elsif options[:success]
-    expect(@stderr).to be_empty
-    if options[:success].is_a? Regexp
-      expect(@stdout).to match options[:success]
-    else
-      expect(@stdout).to eq options[:success]
-    end
-    expect(@exit_status).to eq options.fetch(:exit_status, true)
+  @stdout, @stderr, status = if options[:full_command]
+    Open3.capture3(env, options[:full_command])
   else
-    expect(@stderr).to be_empty
-    expect(@stdout).to eq "#{FRESH_SUCCESS_LINE}\n"
-    expect(@exit_status).to eq options.fetch(:exit_status, true)
+    Open3.capture3(env, *['fresh', Array(options[:command])].flatten.compact)
+  end
+  @exit_status = status.success?
+
+  aggregate_failures do
+    if options[:success] && options[:error]
+      expect(@stdout).to eq options.fetch(:success)
+      expect(@stderr).to eq options.fetch(:error)
+      expect(@exit_status).to eq options.fetch(:exit_status)
+    elsif options[:error]
+      expect(@stdout).to be_empty
+      expect(@stderr).to eq options[:error]
+      expect(@exit_status).to eq options.fetch(:exit_status, false)
+    elsif options[:error_title]
+      expect(@stdout).to be_empty
+      expect(
+        @stderr.lines.grep(/Error/).join
+      ).to eq options[:error_title]
+      expect(@exit_status).to eq options.fetch(:exit_status, false)
+    elsif options[:success]
+      expect(@stderr).to be_empty
+      if options[:success].is_a? Regexp
+        expect(@stdout).to match options[:success]
+      else
+        expect(@stdout).to eq options[:success]
+      end
+      expect(@exit_status).to eq options.fetch(:exit_status, true)
+    else
+      expect(@stderr).to be_empty
+      expect(@stdout).to eq "#{FRESH_SUCCESS_LINE}\n"
+      expect(@exit_status).to eq options.fetch(:exit_status, true)
+    end
   end
 end
 
@@ -201,6 +201,20 @@ def format_url(url)
 end
 
 RSpec.configure do |config|
+  config.raise_errors_for_deprecations!
+
+  config.expect_with :rspec do |c|
+    c.syntax = :expect
+  end
+
+  config.mock_with :rspec do |c|
+    c.syntax = :expect
+  end
+
+  config.filter_run_when_matching focus: true
+  config.filter_run_excluding skip: true
+  config.example_status_persistence_file_path = 'tmp/examples.txt'
+
   config.before do
     %w[home bin].each do |dir|
       FileUtils.mkdir_p File.join(sandbox_path, dir)

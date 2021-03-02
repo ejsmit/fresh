@@ -23,32 +23,66 @@ case "$1" in
     fi
     ;;
   show)
+    if [[ "$*" =~ ^show\ abc1237?:order-test/[abcde]$ ]]; then
+      echo test data for "$2"
+      exit 0
+    fi
     if [[ "$2" == "abc1237:order-test/.fresh-order" ]]; then
       echo d
       echo f
       echo b
-    else
-      echo test data for "$2"
+      exit 0
     fi
+    if [[ "$2" == "abc1237:aliases/.fresh-order" ]]; then
+      echo "fatal: Path 'aliases/.fresh-order' does not exist in 'abc1237'" >&2
+      exit 128
+    fi
+    if [[ "$*" =~ ^show\ abc1237?:(aliases/git\.sh|aliases/ruby\.sh|ackrc|sedmv)$ ]]; then
+      echo test data for "$2"
+      exit 0
+    fi
+    if [[ "$*" =~ ^show\ (1234567:ackrc|abcdefg:sedmv)$ ]]; then
+      echo test data for "$2"
+      exit 0
+    fi
+    if [[ "$*" =~ ^show\ abc1237?:recursive-test/(foo|bar|abc/def)$ ]]; then
+      echo test data for "$2"
+      exit 0
+    fi
+    if [[ "$*" =~ ^show\ abc123:recursive-test-other/abc/def$ ]]; then
+      echo test data for "$2"
+      exit 0
+    fi
+    if [[ "$*" =~ ^show\ abc1237?:hidden-test/(\.fresh-order|foo|\.bar)$ ]]; then
+      echo test data for "$2"
+      exit 0
+    fi
+    echo "unknown git args: $*" >&2
+    exit 1
     ;;
   ls-tree)
-    echo aliases/git.sh
-    echo aliases/ruby.sh
-    echo ackrc
-    echo sedmv
-    echo recursive-test/foo
-    echo recursive-test/bar
-    echo recursive-test/abc/def
-    echo recursive-test-other/abc/def
-    echo hidden-test/foo
-    echo hidden-test/.bar
-    echo hidden-test/.fresh-order
-    echo order-test/.fresh-order
-    echo order-test/a
-    echo order-test/b
-    echo order-test/c
-    echo order-test/d
-    echo order-test/e
+    if [[ "$*" =~ ^ls-tree\ -r\ --name-only\ (abc1237|1234567|abcdefg|abc123)$ ]]; then
+      echo aliases/git.sh
+      echo aliases/ruby.sh
+      echo ackrc
+      echo sedmv
+      echo recursive-test/foo
+      echo recursive-test/bar
+      echo recursive-test/abc/def
+      echo recursive-test-other/abc/def
+      echo hidden-test/foo
+      echo hidden-test/.bar
+      echo hidden-test/.fresh-order
+      echo order-test/.fresh-order
+      echo order-test/a
+      echo order-test/b
+      echo order-test/c
+      echo order-test/d
+      echo order-test/e
+      exit 0
+    fi
+    echo "unknown git args: $*" >&2
+    exit 1
     ;;
   log)
     echo 1234567
